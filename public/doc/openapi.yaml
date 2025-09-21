@@ -1,0 +1,624 @@
+openapi: 3.0.3
+info:
+  title: Auth Frontend API Documentation
+  description: |
+    **프론트엔드 개발자를 위한 인증 API 가이드**
+    
+    이 문서는 React TypeScript 프론트엔드에서 Django 백엔드 API를 사용하는 방법을 설명합니다.
+    
+    ## 주요 특징
+    - JWT 토큰 기반 인증
+    - 카카오 소셜 로그인 지원
+    - 자동 토큰 갱신
+    - TypeScript 타입 정의 포함
+    
+    ## 환경 변수 설정
+    ```env
+    REACT_APP_API_BASE_URL=http://localhost:8000
+    REACT_APP_KAKAO_CLIENT_ID=your_kakao_client_id
+    REACT_APP_KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback
+    ```
+    
+    ## 인증 헤더 형식
+    ```
+    Authorization: Bearer {access_token}
+    ```
+  version: 1.0.0
+  contact:
+    name: Frontend Development Team
+    email: frontend@example.com
+servers:
+  - url: http://localhost:8000
+    description: Local Development Server
+  - url: https://api.example.com
+    description: Production Server
+
+paths:
+  /api/auth/login/:
+    post:
+      operationId: loginUser
+      summary: 사용자 로그인
+      description: |
+        이메일과 비밀번호로 로그인하여 JWT 토큰을 받습니다.
+        
+        **프론트엔드 구현 예시:**
+        ```typescript
+        const loginData: LoginData = {
+          email: 'user@example.com',
+          password: 'password123'
+        };
+        
+        const response = await authService.login(loginData);
+        // response.access, response.refresh 토큰 저장
+        ```
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              basicLogin:
+                summary: 기본 로그인
+                value:
+                  email: user@example.com
+                  password: "1234"
+      responses:
+        '200':
+          description: 로그인 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+              examples:
+                successLogin:
+                  summary: 로그인 성공 응답
+                  value:
+                    access: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+                    refresh: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/auth/logout/:
+    post:
+      operationId: logoutUser
+      summary: 사용자 로그아웃
+      description: |
+        리프레시 토큰을 무효화하여 로그아웃합니다.
+        
+        **프론트엔드 구현 예시:**
+        ```typescript
+        await authService.logout(); // 자동으로 토큰 정리
+        navigate('/login');
+        ```
+      tags:
+        - Authentication
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh_token:
+                  type: string
+                  description: 무효화할 리프레시 토큰
+            examples:
+              logoutRequest:
+                summary: 로그아웃 요청
+                value:
+                  refresh_token: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+      responses:
+        '200':
+          description: 로그아웃 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /api/auth/register/:
+    post:
+      operationId: registerUser
+      summary: 사용자 회원가입
+      description: |
+        새로운 사용자 계정을 생성합니다.
+        
+        **프론트엔드 구현 예시:**
+        ```typescript
+        const registerData: RegisterData = {
+          username: 'newuser',
+          email: 'new@example.com',
+          first_name: '홍',
+          last_name: '길동',
+          password: 'password123',
+          password_confirm: 'password123'
+        };
+        
+        const user = await authService.register(registerData);
+        ```
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: 회원가입 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/auth/profile/:
+    get:
+      operationId: getUserProfile
+      summary: 사용자 프로필 조회
+      description: |
+        현재 로그인한 사용자의 프로필 정보를 조회합니다.
+        
+        **프론트엔드 구현 예시:**
+        ```typescript
+        const user = await authService.getProfile();
+        setUser(user); // Context에 사용자 정보 저장
+        ```
+      tags:
+        - User Profile
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 프로필 조회 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/auth/token/refresh/:
+    post:
+      operationId: refreshToken
+      summary: 토큰 갱신
+      description: |
+        리프레시 토큰으로 새로운 액세스 토큰을 발급받습니다.
+        
+        **프론트엔드 구현 예시:**
+        ```typescript
+        const newTokens = await authService.refreshToken();
+        // 자동으로 새 토큰으로 업데이트됨
+        ```
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh:
+                  type: string
+                  description: 리프레시 토큰
+              required:
+                - refresh
+      responses:
+        '200':
+          description: 토큰 갱신 성공
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access:
+                    type: string
+                    description: 새로운 액세스 토큰
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /api/auth/kakao/login/:
+    get:
+      operationId: getKakaoLoginUrl
+      summary: 카카오 로그인 URL 조회
+      description: |
+        카카오 OAuth 인증 URL을 생성합니다.
+        
+        **프론트엔드 구현 예시:**
+        ```typescript
+        const handleKakaoLogin = () => {
+          authService.startSocialLogin('kakao');
+          // 자동으로 카카오 로그인 페이지로 리다이렉트
+        };
+        ```
+      tags:
+        - Social Login
+      responses:
+        '200':
+          description: 카카오 로그인 URL 생성 성공
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KakaoLoginResponse'
+
+  /api/auth/kakao/callback/:
+    get:
+      operationId: kakaoCallback
+      summary: 카카오 OAuth 콜백
+      description: |
+        카카오 인증 후 콜백을 처리합니다.
+        
+        **프론트엔드에서는 직접 호출하지 않음**
+        - 카카오에서 자동으로 호출하는 엔드포인트
+        - 성공 시 프론트엔드 콜백 페이지로 리다이렉트
+        - URL 파라미터로 토큰과 사용자 정보 전달
+        
+        **콜백 페이지에서 처리:**
+        ```typescript
+        // KakaoCallbackPage.tsx
+        const params = new URLSearchParams(window.location.search);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        // ... 토큰 저장 및 사용자 정보 설정
+        ```
+      tags:
+        - Social Login
+      parameters:
+        - name: code
+          in: query
+          required: true
+          schema:
+            type: string
+          description: 카카오 인증 코드
+      responses:
+        '302':
+          description: 프론트엔드로 리다이렉트
+          headers:
+            Location:
+              schema:
+                type: string
+                example: http://localhost:3000/auth/kakao/callback?access_token=...&refresh_token=...
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT 액세스 토큰을 Authorization 헤더에 포함합니다.
+        
+        **프론트엔드 구현:**
+        ```typescript
+        headers: {
+          'Authorization': `Bearer ${accessToken}`
+        }
+        ```
+
+  schemas:
+    # TypeScript 인터페이스 정의
+    User:
+      type: object
+      description: |
+        **TypeScript 인터페이스:**
+        ```typescript
+        interface User {
+          id: number;
+          username: string;
+          email: string;
+          first_name: string;
+          last_name: string;
+          is_verified: boolean;
+          created_at: string;
+          profile_image?: string; // 소셜 로그인 시에만
+        }
+        ```
+      properties:
+        id:
+          type: integer
+          description: 사용자 고유 ID
+          example: 1
+        username:
+          type: string
+          description: 사용자명
+          example: user123
+        email:
+          type: string
+          format: email
+          description: 이메일 주소
+          example: user@example.com
+        first_name:
+          type: string
+          description: 이름
+          example: 홍
+        last_name:
+          type: string
+          description: 성
+          example: 길동
+        is_verified:
+          type: boolean
+          description: 이메일 인증 여부
+          example: false
+        created_at:
+          type: string
+          format: date-time
+          description: 계정 생성일시
+          example: "2025-09-18T10:30:00Z"
+        profile_image:
+          type: string
+          format: uri
+          description: 프로필 이미지 URL (소셜 로그인)
+          example: "http://k.kakaocdn.net/dn/abc123/profile.jpg"
+
+    LoginRequest:
+      type: object
+      description: |
+        **TypeScript 인터페이스:**
+        ```typescript
+        interface LoginData {
+          email: string;
+          password: string;
+        }
+        ```
+      properties:
+        email:
+          type: string
+          format: email
+          description: 로그인 이메일
+          example: user@example.com
+        password:
+          type: string
+          description: 비밀번호
+          example: "1234"
+      required:
+        - email
+        - password
+
+    RegisterRequest:
+      type: object
+      description: |
+        **TypeScript 인터페이스:**
+        ```typescript
+        interface RegisterData {
+          username: string;
+          email: string;
+          first_name: string;
+          last_name: string;
+          password: string;
+          password_confirm: string;
+        }
+        ```
+      properties:
+        username:
+          type: string
+          description: 사용자명
+          example: user123
+        email:
+          type: string
+          format: email
+          description: 이메일
+          example: user@example.com
+        first_name:
+          type: string
+          description: 이름
+          example: 홍
+        last_name:
+          type: string
+          description: 성
+          example: 길동
+        password:
+          type: string
+          description: 비밀번호
+          example: "1234"
+        password_confirm:
+          type: string
+          description: 비밀번호 확인
+          example: "1234"
+      required:
+        - username
+        - email
+        - first_name
+        - last_name
+        - password
+        - password_confirm
+
+    TokenResponse:
+      type: object
+      description: |
+        **TypeScript 인터페이스:**
+        ```typescript
+        interface LoginResponse {
+          access: string;
+          refresh: string;
+        }
+        ```
+      properties:
+        access:
+          type: string
+          description: JWT 액세스 토큰 (1시간 유효)
+          example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+        refresh:
+          type: string
+          description: JWT 리프레시 토큰 (24시간 유효)
+          example: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+      required:
+        - access
+        - refresh
+
+    KakaoLoginResponse:
+      type: object
+      description: |
+        **TypeScript에서 사용법:**
+        ```typescript
+        const response = await authService.getSocialLoginUrl('kakao');
+        window.location.href = response.login_url;
+        ```
+      properties:
+        status:
+          type: string
+          example: success
+        login_url:
+          type: string
+          format: uri
+          description: 카카오 OAuth 인증 URL
+          example: https://kauth.kakao.com/oauth/authorize?client_id=...
+        redirect_uri:
+          type: string
+          format: uri
+          description: 콜백 URI
+          example: http://localhost:8000/api/auth/kakao/callback/
+        scope:
+          type: string
+          description: 요청 권한
+          example: profile,account_email
+
+    SuccessResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: 요청이 성공적으로 처리되었습니다.
+
+    ErrorResponse:
+      type: object
+      description: |
+        **프론트엔드 에러 처리:**
+        ```typescript
+        try {
+          await authService.login(data);
+        } catch (error) {
+          console.error('로그인 실패:', error.message);
+          // 사용자에게 에러 메시지 표시
+        }
+        ```
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: 요청 처리 중 오류가 발생했습니다.
+        detail:
+          type: string
+          description: 상세 오류 정보
+          example: Invalid credentials provided
+
+  responses:
+    UnauthorizedError:
+      description: 인증 실패 또는 토큰 만료
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            tokenExpired:
+              summary: 토큰 만료
+              value:
+                detail: Token is invalid or expired
+            noToken:
+              summary: 토큰 없음
+              value:
+                detail: Authentication credentials were not provided
+
+    ValidationError:
+      description: 입력 데이터 검증 실패
+      content:
+        application/json:
+          examples:
+            passwordMismatch:
+              summary: 비밀번호 불일치
+              value:
+                password_confirm: ["Passwords don't match"]
+            requiredField:
+              summary: 필수 필드 누락
+              value:
+                email: ["This field is required."]
+
+# 프론트엔드 개발 가이드
+x-frontend-guide:
+  setup:
+    description: |
+      ## 프로젝트 설정
+      
+      1. **환경 변수 설정** (.env 파일)
+      ```env
+      REACT_APP_API_BASE_URL=http://localhost:8000
+      REACT_APP_KAKAO_CLIENT_ID=your_kakao_client_id
+      REACT_APP_KAKAO_REDIRECT_URI=http://localhost:3000/auth/kakao/callback
+      ```
+      
+      2. **AuthService 사용**
+      ```typescript
+      import { authService } from '../services/authService';
+      
+      // 로그인
+      const response = await authService.login({ email, password });
+      
+      // 프로필 조회
+      const user = await authService.getProfile();
+      
+      // 로그아웃
+      await authService.logout();
+      ```
+      
+      3. **AuthContext 사용**
+      ```typescript
+      const { user, isAuthenticated, login, logout } = useAuth();
+      ```
+
+  authentication:
+    description: |
+      ## 인증 플로우
+      
+      ### 1. 일반 로그인
+      ```typescript
+      const handleLogin = async (data: LoginData) => {
+        try {
+          await login(data);
+          navigate('/login/success');
+        } catch (error) {
+          setError(error.message);
+        }
+      };
+      ```
+      
+      ### 2. 카카오 로그인
+      ```typescript
+      const handleKakaoLogin = () => {
+        startSocialLogin('kakao'); // 자동으로 카카오 페이지로 리다이렉트
+      };
+      ```
+      
+      ### 3. 토큰 자동 갱신
+      ```typescript
+      // AuthContext에서 자동으로 처리됨
+      // 토큰 만료 시 자동으로 refresh 시도
+      ```
+
+  errorHandling:
+    description: |
+      ## 에러 처리
+      
+      ```typescript
+      try {
+        await authService.login(data);
+      } catch (error) {
+        if (error.message.includes('401')) {
+          // 인증 실패
+          setError('이메일 또는 비밀번호가 잘못되었습니다.');
+        } else if (error.message.includes('400')) {
+          // 입력 데이터 오류
+          setError('입력 정보를 확인해주세요.');
+        } else {
+          // 기타 오류
+          setError('로그인 중 오류가 발생했습니다.');
+        }
+      }
+      ```

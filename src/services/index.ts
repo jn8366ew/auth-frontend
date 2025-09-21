@@ -1,3 +1,2 @@
 // 서비스 export
-export * from './apiClient';
-export * from './accountsService';
+export { default as authService } from './authService';

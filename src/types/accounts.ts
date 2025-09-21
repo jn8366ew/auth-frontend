@@ -29,6 +29,20 @@ export interface LoginResponse {
   refresh: string;
 }
 
+export type SocialProvider = 'kakao' | 'naver';
+
+export interface SocialLoginData {
+  provider: SocialProvider;
+  code: string;
+  redirect_uri: string;
+}
+
+export interface SocialLoginResponse {
+  access: string;
+  refresh: string;
+  user: User;
+}
+
 export interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -36,5 +50,7 @@ export interface AuthContextType {
   isLoading: boolean;
   login: (data: LoginData) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
+  startSocialLogin: (provider: SocialProvider) => void;
+  setSocialLoginData: (accessToken: string, refreshToken: string, userData: User) => void;
   logout: () => void;
 }
